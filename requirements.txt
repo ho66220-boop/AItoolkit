@@ -1,0 +1,8 @@
+# Reproduction pipeline dependencies (src/build_*.py)
+# Versions pinned to the environment used to produce the committed results.
+numpy==2.3.5
+pandas==2.3.3
+scipy==1.16.3
+scikit-learn==1.7.2
+matplotlib==3.10.6
+openpyxl==3.1.5
