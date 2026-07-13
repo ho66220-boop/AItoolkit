@@ -79,3 +79,28 @@ A clustering-ready matrix should satisfy the following checks:
 - no expert consensus, admission score, or candidate-generation columns
 
 The blank template may fail the all-zero row and all-zero column checks by design. Those checks must pass before the matrix is used for cosine similarity or clustering.
+
+## Actual Data Files (moved from README)
+
+The populated data objects in this repository:
+
+- `data/raw/departments_raw.xlsx`: selected department list
+- `data/raw/recommended_courses_raw.xlsx`: raw recommended-course evidence
+- `data/processed/course_coding_evidence.csv`: cleaned evidence for department-course coding
+- `data/processed/department_course_matrix_binary.csv`: baseline binary matrix (25 departments x 89 course features)
+- `data/processed/department_course_matrix_idf_weighted.csv`: IDF-weighted matrix (main analysis input)
+- `results/tables/keep_for_report/course_idf_weights.csv`: per-course document frequency and IDF weight
+
+Binary coding rule for the main matrix:
+
+| Value | Meaning |
+| ---: | --- |
+| 1 | Listed as a related high-school elective subject in the subject selection guide (`학과 과목 선택 가이드.xlsx`) |
+| 0 | Not listed |
+
+The baseline vector uses raw binary presence, so a near-ubiquitous course such as
+확률과 통계 (21 of 25 departments) is as influential as a highly department-specific one.
+The main analysis re-weights each course by inverse document frequency,
+`weight = ln(N / df)`, which down-weights widely shared courses with no hand-tuned
+parameter. The chosen weighting is supported by a sensitivity sweep in
+`results/tables/keep_for_report/weighting_sensitivity.csv`.

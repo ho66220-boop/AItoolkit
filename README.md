@@ -1,176 +1,104 @@
-# Course-Based Clustering of Academic Departments for Admission Counseling Support
+# 권장과목 기반 학과 군집화와 전문가 검증
 
-Clustering 25 academic departments from their recommended high-school course profiles, and validating the result against practicing admission consultants.
+*Clustering university departments by recommended high-school course profiles, validated against 14 admission consultants' card sort.*
+
+고등학교 **권장과목 데이터만으로** 25개 학과의 유사 구조를 군집화하고, 그 결과를
+현직 입시 컨설턴트 **14명의 카드소팅으로 정량 검증**한 탐색적 데이터 분석 프로젝트입니다.
+완성된 추천 시스템이 아니라, 상담 현장의 직관을 데이터로 재현·보완할 수 있는지를 검증합니다.
 
 ## Key Results
 
-- **Robust macro structure, expert-validated.** Course profiles cluster the 25 departments into a structure that closely matches a consensus from 14 admission consultants at the macro level (**k=3 ARI 0.84**, for both IDF and binary vectors; co-occurrence vs IDF cosine r = 0.68). The top-level k=4 partition is dominated by one large STEM-health core, which both vector types reproduce.
-- **Where IDF helps.** IDF down-weights near-ubiquitous courses on a principled, parameter-free basis. It does not change the top-level k=4 partition (so it does not beat binary there), but it separates the medical-health group earlier (k=5 vs binary's k=7) and tracks expert consensus better at finer granularity (k=5–6). The interpretable sub-structure — medical-health (의예/약학/간호, bootstrap stability 0.97), a quantitative/applied group, and an engineering-chemistry group — emerges from sub-clustering the STEM-health core.
-- **Internal-vs-expert disagreement** yields counseling insights: *Type 1* (shared course preparation that consultants keep apart → overlooked alternatives) and *Type 2* (e.g. 조선해양↔자동차, grouped by consultants but preparing different electives → preparation-mismatch risk).
+- **거시 구조는 전문가와 일치.** 알고리즘 군집(k=3)은 전문가 합의와 ARI **0.84**로
+  일치하며, 학과 쌍 수준에서도 내부 유사도와 전문가 동시분류율이 **r = 0.68**로 정렬됩니다.
+- **IDF 가중의 이점은 세분 구조에 한정.** 상위 분할(k=4)에서는 binary가 더 높고
+  (**0.59 vs 0.52**), IDF는 의약-보건을 더 일찍 분리하며(k=5 vs binary k=7)
+  세분 구조(k=5–6)에서 전문가 합의를 더 잘 추적합니다.
+- **불일치를 실무 인사이트로 번역.** 알고리즘-전문가 불일치를 Type 1/Type 2로
+  구조화하여 "교차 계열 대안 제시"와 "과목 정합성 경고"라는 상담 활용안으로 연결했습니다.
 
-![Algorithm clusters vs expert consensus (ARI): k=3 agreement is strong for both; IDF leads at k=5-6](results/figures/keep_for_report/cardsort_agreement_bars.png)
+![알고리즘 군집 vs 전문가 합의 ARI (rater 부트스트랩 95% CI)](reports/final/figures_v2/cardsort_agreement_bars.png)
 
-![IDF-weighted clustering dendrogram](results/figures/keep_for_report/idf_dendrogram.png)
+![IDF 가중 hierarchical 군집 dendrogram (k=4 군집명 표기)](reports/final/figures_v2/idf_dendrogram.png)
 
-Full write-up: [`reports/latex_progress/main.tex`](reports/latex_progress/main.tex). Reproduce with `src/build_idf_weighted_analysis.py` and `src/build_card_sorting_analysis.py`.
+## 문제 정의
 
-## 1. Project Overview
+입시 상담에서 "권장과목 관점에서 어떤 학과들이 비슷한가"는 컨설턴트의 경험적 직관에
+의존해 왔습니다. 이 프로젝트는 그 직관을 학과별 권장과목 프로파일이라는 데이터로 재현할
+수 있는지, 재현된 구조가 실제 전문가 판단과 어긋나는 지점은 어디인지를 묻습니다.
+어긋나는 지점이야말로 데이터가 상담에 보탤 수 있는 정보이기 때문입니다.
 
-This repository contains an exploratory clustering project for the NOVA50301 AI Toolkit term project.
+분석 대상 25개 학과는 통계적 대표 표본이 아니라 **목적 표본**입니다. 권장과목 다양성,
+상담 출현 빈도, 해석 가능성을 기준으로 선정했고, 특히 조선해양공학과·자동차공학과는
+울산 주력 산업을 반영한 경계 사례로 포함해 "산업 맥락상 함께 추천되는 학과가
+과목 관점에서도 가까운가"를 검증할 수 있게 설계했습니다.
+(선정 논리: [docs/department_selection_rationale.md](docs/department_selection_rationale.md))
 
-The project explores whether recommended high-school course profiles can be used to cluster academic departments in an interpretable way for college admission counseling support. The goal is not to build a complete department recommendation system. Instead, the project focuses on constructing department-course vectors and examining whether the resulting clusters reflect meaningful course-preparation patterns across departments.
+## 방법
 
-The main analytical object is a department-course matrix for 25 selected academic departments. Recommended high-school elective subjects listed in `학과 과목 선택 가이드.xlsx` are coded into binary vectors, then compared using cosine similarity and clustering methods.
+1. 학과 과목 선택 가이드에서 **25×89 권장과목 binary matrix** 구성
+2. 공통 과목(예: 확률과 통계, 21/25개 학과)의 변별력 저하를 **IDF 가중**으로 보정
+   — `weight = ln(N/df)`, 손으로 정하는 모수 없음. 가중 강도는 α 민감도 스윕으로 검증
+3. cosine similarity → **hierarchical clustering**(average linkage, 주 방법) + k-means 비교
+4. 전문가 카드소팅 consensus와 **ARI/NMI**로 비교, rater/feature **부트스트랩**으로
+   신뢰구간과 군집 안정성 정량화 (seed 고정, 재현 가능)
 
-## 2. Research Question
+상세 설계: [docs/project_design.md](docs/project_design.md)
 
-The main research question is:
+## 검증: 전문가 카드소팅
 
-> Can recommended high-school course profiles produce interpretable clusters of academic departments for admission counseling support?
+현직 입시 컨설턴트 14명이 25개 학과 카드를 그룹 수 제한 없이 자유 분류(open card sort)
+했고, 응답을 25×25 동시분류 행렬로 집계해 consensus clustering을 도출한 뒤 알고리즘
+군집과 비교했습니다. 거시 구조(k=3)는 IDF·binary 모두 ARI 0.84로 전문가와 일치하지만,
+상위 k=4는 STEM-보건 대군집이 지배해 양쪽 모두 일치도가 낮고(IDF 0.52, binary 0.59)
+IDF가 binary를 이기지 못합니다. IDF의 기여는 의약-보건을 더 일찍 분리하고(k=5 vs k=7)
+세분 구조(k=5–6)에서 전문가를 더 잘 추적하는 데 있습니다 — 14명 소패널의 한계를
+반영해 일치도의 크기는 부트스트랩 신뢰구간과 함께 방향성 위주로 해석합니다.
 
-The project also considers two supporting questions:
+## 불일치 분석 → 상담 인사이트
 
-1. How can recommended-course information be converted into department-course vectors?
-2. How does down-weighting courses common to many departments (inverse document frequency) change the clustering compared with an unweighted baseline vector?
+이 프로젝트에서 가장 실무적인 산출물은 알고리즘과 전문가가 **어긋나는 지점**의 구조화입니다.
 
-## 3. Why 25 Departments?
+| 유형 | 패턴 | 상담 활용 |
+|---|---|---|
+| **Type 1** | 준비과목은 유사한데 전문가는 분리 | 상담이 놓치기 쉬운 **교차 계열 대안** 제시 |
+| **Type 2** | 전문가는 함께 추천하는데 권장과목은 분기 | **과목 정합성 경고** — 보강 과목 안내 |
 
-The project uses 25 selected departments.
+대표 사례: 조선해양공학과↔자동차공학과는 "울산 산업"으로 함께 추천되지만 권장과목은
+서로 다른 방향으로 갈립니다(Type 2). 이 경우 자동차를 준비한 학생에게 조선해양을
+추천할 때 재료·화학 계열 보강이 필요하다는 신호를 데이터가 먼저 줄 수 있습니다.
 
-The 25 departments were selected as a purposive sample to maximize course-profile diversity and counseling relevance, while keeping the analysis interpretable within the scope of a short exploratory clustering study.
+## 한계와 확장
 
-This means the departments are not intended to be a statistically representative sample of all academic departments. They were selected to include departments with different preparation patterns, counseling relevance, and boundary cases such as humanities/social science, engineering, natural science, health/medical, design, and interdisciplinary fields.
+- 25개 목적 표본이므로 전체 학과로 일반화할 수 없습니다.
+- 수학·과학 공통 과목이 많아 STEM 내부의 세부 전공 차이를 충분히 변별하지 못합니다.
+- 전문가 14명 소패널로 일치도 신뢰구간이 넓어, 크기 단정 대신 방향성으로 해석합니다.
+- 확장 방향: 입결 데이터를 결합한 Type 2 위험 정량화, 25개 학과를 앵커로 한
+  전 학과 준지도 확장. (요약: [reports/final/PORTFOLIO_SUMMARY.md](reports/final/PORTFOLIO_SUMMARY.md))
 
-Shipbuilding and Ocean Engineering and Automotive Engineering are included as industry-specific engineering boundary cases related to the Ulsan regional industrial context. These two departments are not treated as statistically representative of all industry-specific departments; they are exploratory cases for examining how applied engineering fields are positioned in course-based clustering.
+## 재현 방법
 
-More detail is provided in `docs/department_selection_rationale.md`.
+```bash
+pip install -r requirements.txt
 
-## 4. Data Structure
+python src/build_matrix_from_subject_guide.py      # 1) binary matrix 구성
+python src/build_idf_weighted_analysis.py          # 2) IDF 군집화 + 민감도 + 안정성
+python src/build_card_sorting_analysis.py          # 3) 카드소팅 집계 + ARI + 부트스트랩
+python src/build_portfolio_figures_v2.py           # 4) 그림 재생성 (계산 불변)
+```
 
-The core data source is recommended high-school elective subject information matched to the 25 departments in `학과 과목 선택 가이드.xlsx`.
-
-The main data objects are:
-
-- `data/raw/departments_raw.xlsx`: selected department list
-- `data/raw/recommended_courses_raw.xlsx`: raw recommended-course evidence
-- `data/processed/course_coding_evidence.csv`: cleaned evidence for department-course coding
-- `data/processed/department_course_matrix_binary.csv`: baseline binary matrix
-- `data/processed/department_course_matrix_idf_weighted.csv`: IDF-weighted matrix (main analysis input)
-- `results/tables/keep_for_report/course_idf_weights.csv`: per-course document frequency and IDF weight
-
-The main matrix uses the following binary coding rule:
-
-| Value | Meaning |
-| ---: | --- |
-| 1 | Listed as a related high-school elective subject in the subject selection guide |
-| 0 | Not listed |
-
-The baseline vector uses the raw binary presence of each course, so a near-ubiquitous course such as 확률과 통계 (listed by 21 of 25 departments) is as influential as a highly department-specific one. Because the guide lists specific elective subjects rather than broad subject labels, simply deleting broad labels is not applicable here. The main analysis instead re-weights each course by inverse document frequency (IDF), `weight = ln(N / df)`, which down-weights widely shared courses with no hand-tuned parameter. The chosen weighting is supported by a sensitivity sweep in `results/tables/keep_for_report/weighting_sensitivity.csv`.
-
-The cleaned schema for a simplified department-course matrix is documented in `docs/department_course_matrix_schema.md`. In that schema, `department_id`, `department_name`, `broad_field`, and `selected_reason` are metadata columns and should not be used as clustering features.
-
-## 5. Method
-
-The analysis follows these steps:
-
-1. Build a department-course matrix from recommended-course evidence.
-2. Construct baseline binary vectors.
-3. Construct IDF-weighted vectors (`weight = ln(N / df)`) to down-weight courses common to many departments.
-4. Compute cosine similarity between department vectors.
-5. Apply hierarchical clustering (average linkage) as the main clustering method.
-6. Use k-means clustering as a comparison method.
-7. Compare baseline and IDF-weighted results using cluster interpretability, recovery of academic-field structure (ARI/NMI against `broad_field`), and a weighting-sensitivity sweep. Silhouette is reported but interpreted with caution, because it rewards a single dominant cluster and therefore favours the undifferentiated baseline.
-
-The project treats clustering results as exploratory patterns, not as final department recommendations.
-
-## 6. Progress Meeting Scope
-
-The Progress Meeting focuses on the completed pre-final analysis:
-
-- construction of department-course matrices
-- baseline binary versus IDF-weighted vector design
-- cosine similarity computation
-- hierarchical clustering results
-- k-means comparison
-- weighting-sensitivity analysis
-- preliminary dendrogram and heatmap interpretation
-- initial discussion of limitations
-
-Main progress-stage outputs (IDF-weighted analysis) include:
-
-- `results/figures/keep_for_report/idf_dendrogram.png`
-- `results/figures/keep_for_report/idf_core_subdendrogram.png`
-- `results/tables/keep_for_report/idf_cluster_assignments.csv`
-- `results/tables/keep_for_report/idf_cluster_summary.csv`
-- `results/tables/keep_for_report/core_subclusters.csv`
-- `results/tables/keep_for_report/course_idf_weights.csv`
-- `results/tables/keep_for_report/selection_type_idf.csv` (per-type IDF justifying course-level weighting)
-- `results/tables/keep_for_report/weighting_sensitivity.csv`
-- `results/tables/keep_for_report/cluster_robustness.csv`
-- `results/tables/keep_for_report/kmeans_vs_hierarchical.csv` (method-robustness check)
-
-Expert card-sorting outputs (`src/build_card_sorting_analysis.py`):
-
-- `results/figures/keep_for_report/cardsort_cooccurrence_heatmap.png`
-- `results/figures/keep_for_report/cardsort_agreement_bars.png`
-- `results/figures/keep_for_report/cardsort_consensus_dendrogram.png`
-- `results/figures/keep_for_report/cardsort_cooccur_vs_idf_scatter.png`
-- `results/tables/keep_for_report/cardsort_agreement.csv`
-- `results/tables/keep_for_report/cardsort_consensus_assignments.csv`
-- `results/tables/keep_for_report/cardsort_department_ambiguity.csv`
-- `results/tables/keep_for_report/cardsort_disagreement_pairs.csv` (internal-vs-external divergence)
-
-The baseline binary outputs (`hierarchical_cluster_assignments.csv`, `cluster_summary.csv`, `course_similarity_matrix.csv`, `course_similarity_heatmap.png`, `hierarchical_dendrogram.png`) are retained for the baseline-versus-IDF comparison.
-
-Report-relevant outputs are kept under `keep_for_report/`. Earlier weighted-vector variants are not used as evidence and are not version-controlled.
-
-Some generated file names still contain `pre_expert` for historical reasons. Expert card-sorting validation is conducted separately from the Progress Meeting core clustering analysis (see Section 8) and is not required for the Progress Meeting milestone.
-
-## 7. Expected Final Report Scope
-
-The final 5-page report will focus on the course-based clustering analysis.
-
-Expected report components:
-
-1. Motivation and research question
-2. Explanation of the 25-department purposive sample
-3. Department-course matrix construction
-4. Baseline and IDF-weighted vector design
-5. Cosine similarity and clustering methods
-6. Preliminary clustering results
-7. Expert card-sorting validation (consensus co-grouping versus clustering, ARI/NMI)
-8. Discussion of interpretability, limitations, and future extensions
-
-The final report will not claim that the project recommends departments automatically. The intended claim is that recommended-course profiles can provide an interpretable basis for exploratory department clustering.
-
-## 8. Expert Validation and Future Extensions
-
-Expert card-sorting validation is complete, separate from the Progress Meeting core clustering analysis. Fourteen practicing admission consultants independently grouped the 25 departments by recommended-course similarity in an open card sort, with no constraint on the number of groups. Responses were aggregated into a 25-by-25 co-occurrence matrix to derive a consensus clustering, then compared with the algorithmic clusters using Adjusted Rand Index (ARI) and Normalized Mutual Information (NMI). At the macro level (k=3) both the IDF and binary clusterings match the expert consensus strongly (ARI 0.84); the top-level k=4 partition is dominated by a STEM-health core and agrees only modestly (IDF 0.52, binary 0.59). IDF's benefit is limited to separating the medical-health group earlier (k=5 vs binary's k=7), course-level feature discrimination, and finer-granularity agreement at k=5–6 (co-occurrence vs IDF cosine r=0.68). Outputs: `results/figures/keep_for_report/cardsort_*.png` and `results/tables/keep_for_report/cardsort_*.csv` (the raw response workbook holds real respondent names and is not version-controlled).
-
-The following components remain genuine future extensions, outside the core scope of the current term project:
-
-- admission score feasibility analysis
-- disagreement case analysis between course-based similarity and expert co-grouping
-- candidate-generation tables for counseling workflows
-- validation of the clustering output in real counseling settings
-
-These extensions may help evaluate practical usefulness later, but they are not part of the current term project.
-
-## 9. Repository Structure
+카드소팅 원자료는 응답자 개인정보를 포함하므로 저장소에 없습니다(.gitignore).
+분석은 비식별 집계 산출물(`results/tables/keep_for_report/cardsort_*.csv`)로 재현됩니다.
 
 ```text
 department-course-clustering/
-|- data/
-|  |- raw/          # Raw department and recommended-course files
-|  |- processed/    # Analysis-ready matrices, similarities, and cluster outputs
-|  |- interim/      # Intermediate files if needed
-|  `- external/     # Source Excel files used for raw data construction
-|- docs/            # Project design, selection rationale, and matrix schema notes
-|- reports/
-|  `- progress/     # Progress Meeting materials
-|- results/
-|  |- figures/      # Dendrograms and heatmaps
-|  `- tables/       # Cluster assignments, metrics, and similarity tables
-|- src/             # Reproducible data processing and analysis code
-`- templates/       # Core data templates and optional future-extension templates
+├─ data/           # 원천·가공 데이터 (민감 원자료 제외)
+├─ src/            # 재현 가능한 분석 파이프라인
+├─ results/        # 그림·표 산출물
+├─ reports/final/  # 소논문 v2, 개선 figure, 포트폴리오 문서
+└─ docs/           # 설계 노트, 표본 선정 논리, 스키마
 ```
+
+## 보고서
+
+- 소논문(v2, IEEEtran): [reports/final/권장과목_학과군집화_소논문_v2.tex](reports/final/권장과목_학과군집화_소논문_v2.tex)
+- 변경 이력: [reports/final/REVISION_NOTES.md](reports/final/REVISION_NOTES.md)
